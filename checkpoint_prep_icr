@@ -1,0 +1,31 @@
+source /remote/us01home24/sunna/proj_disk/NT/reg_qor/prepare_chkp_file.tcl
+                      set case_info [prepare_chkp_file rpt_log popt case_info]
+                      if {[llength $case_info]>0} {
+                        set ICFWNS [lindex $case_info 0]
+                        set ICFTNSPM [lindex $case_info 1]
+                        set ICFNVioPPM [lindex $case_info 2]                        
+                        #set TranAvg [lindex $case_info 3]
+                        set ICFOPTMEM [lindex $case_info 4]
+                        set ICFOPTCPU [lindex $case_info 5]
+                        set ICFMaxTCostPM [lindex $case_info 6]
+                        set ICFNMaxTranPM [lindex $case_info 7]
+                        set ICFBufInvCnt [lindex $case_info 8]
+                        set ICFBufInvArea [lindex $case_info 9]
+                        #set TotalArea [lindex $case_info 10]
+                        set HFN60 [lindex $case_info 11]
+                        set HFN100 [lindex $case_info 12]
+                        set BufRmvl [lindex $case_info 13]
+
+                        puts "ICFWNS $ICFWNS"
+                        puts "ICFTNSPM $ICFTNSPM"
+                        puts "ICFNVioPPM $ICFNVioPPM"
+                        puts "ICFOPTMEM $ICFOPTMEM"
+                        puts "ICFOPTCPU $ICFOPTCPU"
+                        puts "ICFMaxTCostPM $ICFMaxTCostPM"
+                        puts "ICFNMaxTranPM $ICFNMaxTranPM"
+                        puts "ICFBufInvCnt $ICFBufInvCnt"
+                        puts "ICFBufInvArea $ICFBufInvArea"
+                        puts "HFN60 $HFN60"
+                        puts "HFN100 $HFN100"
+                        puts "BufRmvl $BufRmvl"                         
+}

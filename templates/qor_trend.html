@@ -1,0 +1,141 @@
+
+<html>
+	<head>
+	    <meta charset="utf-8">
+	    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+	    <meta name="viewport" content="width=device-width, initial-scale=1">
+	    <script src="/u/phyan/workspace/python/qor_analyzer/jquery/1.11.1/jquery.min.js"></script>
+		<script src="/u/phyan/workspace/python/qor_analyzer/libs/jqueryui/jquery.ui-1.9.0.min.js"></script>		
+	<!-- 引入 Bootstrap -->
+	<!--
+		<link href="/u/phyan/workspace/python/qor_analyzer/libs/bootstrap/2.3.2/css/bootstrap.min.css" rel="stylesheet">	
+		-->
+		<script type="text/javascript" src="/u/phyan/workspace/python/qor_analyzer/bootstrap/js/bootstrap.js"></script>
+		<script type="text/javascript" src="/u/phyan/workspace/python/qor_analyzer/bootstrap/js/Chart_v1.js"></script>
+		<style type="text/css" src="/u/phyan/workspace/python/qor_analyzer/bootstrap/css/bootstrap.css"></style>
+		<meta name="description" content="">
+	    <meta name="author" content="">
+	    <link rel="icon" href="../../favicon.ico">
+
+	    <title>QoR Analyzer ^_^</title>
+
+	    <!-- Bootstrap core CSS -->
+	    <link href="/u/phyan/workspace/python/qor_analyzer/bootstrap/3.3.5/css/bootstrap.min.css" rel="stylesheet">
+	    <!-- Bootstrap theme -->
+	    <link href="/u/phyan/workspace/python/qor_analyzer/bootstrap/css/bootstrap-theme.min.css" rel="stylesheet">
+	    <!-- Custom styles for this template -->
+	    <link href="/u/phyan/workspace/python/qor_analyzer/bootstrap/css/theme.css" rel="stylesheet">
+
+		<title> QoR!! </title>
+	</head>
+
+	<body role="document" style="background-color: #efefef;">
+		<style>
+		.navbar .nav>li>a{padding: 15px 10px 15px 10px}
+		</style>
+
+	    <nav class="navbar navbar-inverse navbar-fixed-top">
+
+		<div class="container">
+	        <div class="navbar-header">
+	          <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+	            <span class="sr-only">Toggle navigation</span>
+	            <span class="icon-bar"></span>
+	            <span class="icon-bar"></span>
+	            <span class="icon-bar"></span>
+	          </button>
+	          <a class="navbar-brand" href="#" style="color:#fff;">QoR Regression</a>
+	        </div>
+	        <div id="navbar" class="navbar-collapse collapse">
+	          <ul class="nav navbar-nav">
+	            <li class="active"><a href="#">DashBoard</a></li>
+				<li><a href="#">About</a></li>
+			  </ul>
+
+	        </div><!--/.nav-collapse -->
+	  	</div>
+	    </nav>  
+
+		<div class="container bs-docs-container" role="main">
+			<!-- Main jumbotron for a primary marketing message or call to action -->
+			<div class="row" style="width:120%;">
+				<div class="col-md-9" role="main">
+				
+				  	{% set index = 0 %}
+				  	{% for metrics in metrics_list %}
+
+					<div class="row">
+					 
+						<div class="col-md-12">
+						<div class="panel" style="border-color: #39ADB4;">
+						  <!-- Default panel contents -->
+						  <div class="panel-heading" style="background-color: #39ADB4; color: white; font-weight: bold">{{metrics}}</div>
+						  <canvas class="qor_chart" id="myChart_{{metrics}}_{{index}}" width="350" height="100"></canvas>
+
+						  </div>
+						  </div>
+
+					
+					</div>
+					<script type="text/javascript">
+				//cmd stats
+
+					{% set color_index = 0 %}
+					var ctx = $("#myChart_{{metrics}}_{{index}}").get(0).getContext("2d");
+					// This will get the first returned node in the jQuery collection.
+				  	var data_{{metrics}}_{{index}} = {
+					    labels: {{qor_metrics['date']}},
+					    datasets: [
+					        {
+					            label: "{{metrics}}", 
+					            fill: false,
+					            lineTension: 0.4,
+					            backgroundColor: "{{color_list[index]}}",
+					            borderColor: "{{color_list[index]}}",
+					            borderCapStyle: 'butt',
+					            borderDash: [],
+					            borderDashOffset: 0.0,
+					            borderJoinStyle: 'miter',
+					            pointBorderColor: "{{color_list[index]}}",
+					            pointBackgroundColor: "{{color_list[index]}}",
+					            pointBorderWidth: 1,
+					            pointHoverRadius: 3,
+					            pointHoverBackgroundColor: "#fff",
+					            pointHoverBorderColor: "{{color_list[index]}}",
+					            pointHoverBorderWidth: 2,
+					            pointRadius: 3,
+					            pointHitRadius: 1,
+					            data: {{qor_metrics[metrics]}},
+					            spanGaps: false,
+					        },
+				   	 	]
+					};
+
+					var myLineChart_{{metrics}}_{{index}} = new Chart(ctx, {
+				    	type: 'line',
+				   		data: data_{{metrics}}_{{index}},
+					    options: {
+					        scales: {
+					            xAxes: [{
+					                ticks: {
+					                    //autoSkip: {{auto_skip}},
+					                    display: true,
+					                }
+					            }],
+					        }
+					    }
+					});
+
+					</script>
+					{% set index = index + 1 %}
+					{% endfor %}
+
+				 
+				</div>
+				<!-- col-9 -->
+			
+			</div>                   
+		</div>
+
+	</body>
+</html>

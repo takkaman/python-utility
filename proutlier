@@ -1,0 +1,810 @@
+#!/depot/tcl8.5/bin/tclsh8.5
+# vim:set syntax=tcl: #
+
+array set kargs {
+  %         ""
+  -columns  ""
+  -dbdir    "xtpl"
+  -title    ""
+  -debug    0
+}
+set argidx    0
+set skip      0
+foreach arg $argv {
+  incr argidx
+  if {$skip} {
+    incr skip -1
+    continue
+  }
+
+  switch -- $arg {
+     -debug {
+       set kargs($arg) 1
+     }
+     -dbdir -
+     -title -
+     -columns {
+       set kargs($arg) [lindex $argv $argidx]
+       incr skip 1
+     }
+     default {
+       lappend kargs(%) $arg
+     }
+  }
+}
+
+
+if {$::kargs(-debug)} {
+  parray kargs
+}
+
+
+proc parse_propts {file} {
+  set propts [dict create]
+
+
+  set fp [open $file]
+  while {[gets $fp line]>=0} {
+    if {[regexp {^\s*#} $line]} continue
+
+    switch -glob -- $line {
+      "*::*" {
+        set idx [string first "::" $line ]
+        set k [string range $line 0 $idx-1]
+        set v [string range $line $idx+2 end]
+        if {$k ne ""} {
+          set curkey $k
+        }
+        dict append propts $curkey "\n" $v
+      }
+      "*:*" {
+        set idx [string first ":" $line ]
+        set k [string range $line 0 $idx-1]
+        set v [string range $line $idx+1 end]
+        set curkey $k
+        dict set propts $curkey $v
+      }
+      default {
+        # ...
+      }
+    }
+  }
+  close $fp
+
+  return $propts
+}
+
+set DESIGNS [dict create]
+
+set propts [dict create]
+if {[file readable ./propts.cfg]} {
+  set propts [parse_propts "./propts.cfg"]
+
+  if {[dict exist $propts designs]} {
+    foreach design [dict get $propts designs] {
+        dict set ::DESIGNS $design 0
+    }
+  }
+}
+
+
+proc parse_tsv {file} {
+    set fp [open $file]
+
+    while {[gets $fp line]>=0} {
+      set values [lassign $line col design]
+
+      dict set db $col $design $values
+      if {$design ne "*"} {
+        dict incr ::DESIGNS $design
+      }
+    }
+    close $fp
+
+    return $db
+}
+
+# TODO:
+proc unote_id {args} {
+  return [string map {/ -} [join [concat $args] "-"]]
+}
+
+
+foreach tsvfile $::kargs(%) {
+  if {[llength $tsvfile]==1} {
+    set prefix [file tail [file dir $tsvfile]]
+  } else {
+    lassign $tsvfile tsvfile prefix
+  }
+
+  dict set db $prefix [parse_tsv $tsvfile]
+}
+
+proc count_outlier {db prefix col threshold} {
+  set ret [dict create threshold $threshold count 0 designs "" Count "--" Mean "--"]
+
+  if {![dict exist $db $prefix $col]} {
+    return $ret
+  }
+
+  set is_x [string match "*X" $threshold]
+  set is_double [string is double $threshold]
+
+  set threshold [string trim $threshold "X"]
+
+  dict for {design values} [dict get $db $prefix $col] {
+    if {$design eq "*"} {
+      set ret [dict merge $ret $values]
+      continue
+    }
+
+    lassign $values flowval percent flow baseval
+    set percent [string trim $percent "%"]
+
+    if {$is_x} {
+      # e.g. 2X
+      set p 1.0
+      catch {set p [expr {$flowval*1.0/$baseval}]}
+      if {$p > $threshold} {
+        dict incr    ret count
+        lappend values 1
+        dict lappend ret designs $design $values
+      }
+    } elseif {$is_double} {
+      # number and percent
+      if {[string is double $flowval] && [string is double $baseval]} {
+        if {$percent>$threshold} {
+          dict incr    ret count
+          lappend values 1
+          dict lappend ret designs $design $values
+        }
+      } else {
+        if {[string is double $flowval] || [string is double $baseval]} {
+          # dict incr    ret count
+          lappend values 0
+          dict lappend ret designs $design $values
+        }
+      }
+    } else {
+      # text
+      if {$flowval ni $threshold} {
+        dict incr    ret count
+        lappend values 1
+        dict lappend ret designs $design $values
+      } else {
+        if {$flowval ne $baseval} {
+          dict incr    ret count
+          lappend values 1
+          dict lappend ret designs $design $values
+        }
+      }
+    }
+  }
+
+  return $ret
+}
+
+# "PTWNS%5/PTAMTNS%1/PTAMTNSHold%5/ICFWNS%5/AMTNS%1/AMTNSHold%5/ICFNHoldVioPM%5/ICFMvArea%3/ICFSLeakPow%5/ICFSTotPow%5/ICFCTMxTranVioPM%10/ICFAreaCTCel%10/ICFNMxTranPM%10/allCPU%5/allMem%5%/allCLK%5"
+
+puts {
+<title>Outlier Notes</title>
+<link rel="stylesheet" type="text/css" href="http://pv/pone/asset/vendor/semantic/semantic.min.css">
+<script src="http://pv/pone/asset/vendor/jquery/1.9.1/jquery.min.js"></script>
+<script src="http://pv/pone/asset/vendor/semantic/semantic.min.js"></script>
+
+<style>
+table {
+   border-collapse:collapse;margin:1.5em 0.5em;
+   border: 2px solid black;
+   border-width: 2px 1px;
+   font-size: 13px;
+}
+th {
+    background-color: lightcyan;
+    border-width: 1px;
+    padding:0 1.0em;
+    border: 1px solid silver;
+    line-height:2.0;
+}
+td {
+ border:1px solid silver;border-width:1px 0;
+ padding:0 0.6em;
+ line-height:2.0;
+ text-align:right;
+ padding-left:1.5em;
+}
+th.d {
+  text-align:right;
+}
+
+td.note {
+  min-width:16em;
+  text-align:left;
+}
+.unote {
+  background-color:lightyellow;
+  border-width:1px;
+  text-align:left;
+  color:#900;
+}
+
+thead tr, thead th, thead td {
+  border:2px solid black;
+  border-width:2px 1px;
+  font-weight:bold;
+  line-height:32px;
+  border-left-color:silver;
+  border-right-color:silver;
+
+}
+
+a:hover {
+  text-decoration:underline;
+}
+
+.unote-waived , .unote-waive {
+    background-color: #ddd;
+    color: #333;
+}
+
+.unote-fail {
+    background-color: #f99;
+}
+
+.unote-pass {
+  background-color: lightgreen;
+  color: green;
+}
+
+.unote-issue {
+  background-color: yellow;
+}
+
+.unote-todo {
+  background-color: cyan;
+}
+
+.unote-debug {
+    background-color: cyan;
+}
+
+tr.outlier-clean > * {
+  background-color:#cfc;
+}
+tr.allfail td {
+    background-color: #fcc;
+}
+</style>
+}
+
+puts {
+<body>
+<div class="ui inverted stackable menu fixed">
+  <div class="ui container">
+    <a class="item" target="_blank" href="http://pv/pone/24x7.cgi"> 24x7 </a>
+    <a class="item" target="_blank" href="http://pv/pone/repo/"> pvrepo </a>
+    <a class="item" target="_blank" href="http://pv/pone/checkin/"> changelist </a>
+  </div>
+</div>
+}
+
+puts {
+<div id="main" class="ui container" style="margin-top:64px">
+}
+set outliers [list]
+
+#  html.ptqor/PTWNS             5
+#  html.ptqor/PTAMTNS           1
+#  html.ptqor/PTAMTNSHold       5
+#  html.rerpt/ICFWNS            5
+#  html.rerpt/AMTNS             1
+#  html.rerpt/AMTNSHold         5
+#  html.rerpt/ICFNHoldVioPM     5
+#  html.rerpt/ICFMvArea         3
+#  html.rerpt/ICFSLeakPow       5
+#  html.rerpt/ICFSTotPow        5
+#  html.rerpt/ICFCTMxTranVioPM 10
+#  html.rerpt/ICFAreaCTCel     10
+#  html.rerpt/ICFNMxTranPM     10
+#  html/allCPU                  5
+#  html/allMem                  5
+#  html/allCLK                  5
+#
+#  html.ptsi/PTWNS              5
+#  html.ptsi/PTAMTNS            1
+#  html.ptsi/PTAMTNSHold        5
+
+set columns $kargs(-columns)
+
+if {$columns eq ""} {
+  set columns [dict get $propts pv.outlier.columns]
+} elseif {[llength $kargs(-columns)]==1} {
+  set columns [dict get $propts pv.outlier.columns.$columns]
+}
+
+foreach {item threshold} $columns {
+  lassign [split $item /] prefix col
+  set outlier [count_outlier $db $prefix $col $threshold]
+
+  lappend outliers $item $col $outlier
+
+  foreach {design values} [dict get $outlier designs] {
+    dict set db outlier designs $design $item $values
+  }
+}
+
+set title $::kargs(-title)
+if {$title eq ""} {
+  set title "Outlier Summary"
+} else {
+  set title "Outlier Summary: $title"
+}
+puts "<h1 class='ui header'>$title</h1>"
+
+if {[file exist index.html]} {
+  puts {<p>}
+  puts {<a href="index.html" target="_blank">index.html</a>}
+  puts {</p>}
+}
+
+
+puts {
+<div class="ui top attached tabular menu">
+  <div class="item" data-tab="outlier-summary">Outlier Summary</div>
+  <div class="item" data-tab="outlier-detail">Outlier Detail</div>
+  <div class="item active" data-tab="design-detail">Design Detail</div>
+  <div class="item" data-tab="design-summary">Design Summary</div>
+  <div class="item" data-tab="star-list">STAR List</div>
+</div>
+}
+
+puts "<div class='ui tab segment bottom attached' data-tab='outlier-summary'>"
+puts "<h2>Outlier Summary</h2>"
+puts "<table id='outlier-summary'>"
+puts {
+  <thead>
+<tr>
+  <th>Column</th>
+  <td>Threshold</td>
+  <td>#outlier</td>
+  <td>Mean</td>
+  <td>Count</td>
+  <td class="note">Note</td>
+  <th class="autosum">Summary</th>
+</tr>
+  </thead>
+}
+foreach {item col outlier} $outliers {
+  set htmldir [file dir $item]
+  set count_url   [glob -nocomplain -dir $htmldir Histgrm_${col}_*.html]
+  set outlier_url [glob -nocomplain -dir $htmldir index.html]
+  set outlier_count [dict get $outlier count]
+  set design_count  [dict get $outlier Count]
+  if {$design_count eq "--"} {
+    set design_count 0
+  }
+
+  puts [subst {
+  <tr data-item='$item' class="[expr {$outlier_count==0?"outlier-clean":""}] [expr {$design_count==0?"allfail":""}]">
+    <th>$col</th>
+    <td>[dict get $outlier threshold]%</td>
+    <td><a target="_blank" href="$count_url">$outlier_count</a></td>
+    <td><a target="_blank" href="$outlier_url">[dict get $outlier Mean]</a></td>
+    <td>$design_count</td>
+    <td class='unote' data-unote='[unote_id outlier-$col]'></td>
+    <td class='autosum' style='text-align:left'></td>
+  </tr>
+  }]
+}
+puts </table>
+puts "</div>"
+
+
+puts "<div class='ui tab segment bottom attached' data-tab='outlier-detail'>"
+puts "<h2>Outlier Detail</h2>"
+puts "<table id='outlier-detail'>"
+puts {
+  <thead>
+<tr>
+  <th>Column</th>
+  <th>Threshold</th>
+  <th>Count</th>
+  <td>Design</td>
+  <td>Base</td>
+  <td>Flow</td>
+  <td>%</td>
+  <td class="note">Note</td>
+</tr>
+  </thead>
+}
+foreach {item col outlier} $outliers {
+  set designs [dict get $outlier designs]
+  set outlier_count [dict get $outlier count]
+  set n_design [dict size $designs]
+  set n 0
+  if {0 && $n_design==0} {
+    puts "<tr>"
+      puts "
+    <th rowspan='$n_design'>$col</th>
+    <th rowspan='$n_design' class='d'>[dict get $outlier threshold]%</th>
+    <th rowspan='$n_design' class='d'>[dict get $outlier count]</th>
+    <td colspan='5' class='note'></td>
+      "
+    puts "</tr>"
+  }
+  dict for {design values } $designs {
+    lassign $values flowval percent flow baseval is_outlier
+    if {$is_outlier == 0} continue
+
+    incr n
+    puts "<tr data-item='$item'>"
+    if {$n==1} {
+      puts "
+    <th rowspan='$outlier_count'>$col</th>
+    <th rowspan='$outlier_count' class='d'>[dict get $outlier threshold]%</th>
+    <th rowspan='$outlier_count' class='d'>$outlier_count</th>
+      "
+    }
+
+
+    set htmldir [file dir $item]
+    # set design_url "$htmldir/design_$design.html"
+
+    puts [subst {
+       <td><a href='$htmldir/design_$design.html' target='_blank'>$design</a></td>
+       <td>$baseval</td>
+       <td title="$flow">$flowval</td>
+       <td>$percent</td>
+       <td class='unote' data-unote='[unote_id outlier-$item-$design]'></td>
+    }]
+    puts "</tr>"
+  }
+}
+
+puts </table>
+puts "</div>"
+
+
+
+puts "<div class='ui tab segment bottom attached active' data-tab='design-detail'>"
+puts "<h2>Design Detail</h2>"
+puts {
+  <p><button type="button" class="ui button" onclick="$('.design-note').toggle()">Show/Hide Design Detail</button><button type="button" class="ui button" onclick="$('.na-row').toggle()">Show/Hide NA Rows</button></p>
+
+}
+puts "<table>"
+puts {
+  <thead>
+<tr>
+  <th>Design</th>
+  <td>Column</td>
+  <td>Base</td>
+  <td>Flow</td>
+  <td>%</td>
+  <td class="note">Note</td>
+  <td class="note design-note">Design Note</td>
+</tr>
+  </thead>
+}
+
+foreach design [dict keys $::DESIGNS] {
+  if {![dict exist $db outlier designs $design]} {
+    puts "<tr class='na-row'>"
+    puts "<th>$design</th><td colspan='4'>N/A</td>"
+    puts "<td class='unote' data-unote='[unote_id outlier-$design]'></td>"
+    puts "<td class='unote design-note' data-unote='[unote_id design-$design]'></td>"
+    puts "</tr>"
+    continue
+  }
+
+  set items [dict get $db outlier designs $design]
+  set n_outlier [dict size $items]
+  set n 0
+  dict for {item values} $items {
+    incr n
+    set col     [file tail $item]
+    set htmldir [file dir  $item]
+    puts "<tr>"
+    if {$n==1} {
+      puts "<th rowspan='$n_outlier'>$design</th>"
+    }
+    lassign $values flowval percent flow baseval
+    puts "
+       <td title='$item'><a href='$htmldir/design_$design.html' target='_blank'>$col</a></td>
+       <td>$baseval</td>
+       <td title='$flow'>$flowval</td>
+       <td>$percent</td>
+       <td class='unote' data-unote='[unote_id outlier-$item-$design]'></td>
+    "
+    if {$n==1} {
+      puts "<td rowspan='$n_outlier' class='unote design-note' data-unote='[unote_id design-$design]'></td>"
+    }
+    puts "</tr>"
+  }
+}
+puts "</table>"
+puts "</div>"
+
+puts "<div class='ui tab segment bottom attached' data-tab='design-summary'>"
+puts "<h2>Design Summary</h2>"
+puts "<table>"
+puts {
+  <thead>
+<tr>
+  <th>Design</th>
+  <th>Status</th>
+  <td class="note" style="width:32em">Note</td>
+</tr>
+  </thead>
+}
+set prefix html.rerpt
+foreach design [dict keys $::DESIGNS] {
+
+  if {[dict exist $::db $prefix Status $design]} {
+    set status [lindex [dict get $::db $prefix Status $design] 0]
+  } else {
+    set status ""
+  }
+
+  puts "<tr>"
+  puts  "<th>$design</th>"
+  puts  "<th>$status</th>"
+  puts  "<td class='unote' data-unote='[unote_id design-$design]'></td>"
+  puts "</tr>"
+
+}
+puts "</table>"
+puts "</div>"
+
+puts {
+<div class='ui tab segment bottom attached' data-tab='star-list'>
+<h2>STAR List</h2>
+<table class="ui table compact celled striped">
+  <thead>
+   <tr><th>ID</th><th>Title</th><th>Status</th></tr>
+  </thead>
+  <tbody id='star-list'></tbody>
+</table>
+</div>
+}
+
+puts {
+<div id='unote-status' class="ui message icon small">
+  <i class="spinner loading icon"></i>
+  <div class="content">
+    <strong>Loading user notes ...</strong>
+  </div>
+</div>
+}
+
+puts {
+<div class="ui message">
+  <div class="content">
+    Reload this page to sync all people's change.
+  </div>
+</div>
+}
+
+puts {
+<!--div class="ui sticky" style="width: 272px !important; height: 262px !important; left: 154.5px;">
+      <h3 class="ui header">Stuck Content</h3>
+      <img>
+</div-->
+
+<div id="page-dimmer" class="ui page dimmer">
+  <div class="content">
+    <div class="center">Hello</div>
+  </div>
+</div>
+
+<div id="unote-dialog" class="ui modal">
+  <div class="header">User Note</div>
+  <div class="content">
+<form class="ui form">
+ <div class="field" id="unote-marks">
+   <a href="#" data-mark="#pass#" class="ui button compact green"><i class="ui icon checkmark"></i> PASS</a>
+   <a href="#" data-mark="#issue#" class="ui button compact yellow"><i class="ui icon frown "></i> Issue</a>
+   <a href="#" data-mark="#fail#" class="ui button compact red"><i class="ui icon warning"></i> FAIL</a>
+   <a href="#" data-mark="#waive#" class="ui button compact brown"><i class="ui icon remove"></i> Waive</a>
+   <a href="#" data-mark="#todo#" class="ui button compact brown"><i class="ui icon tasks"></i> TODO</a>
+ </div>
+ <div class="field">
+  <!--label></label-->
+  <textarea id="unote-text" rows="7" cols="96" placeholder="user note ..."></textarea>
+ </div>
+</form>
+  </div>
+ <div class="actions">
+    <div class="ui black deny button">Cancel</div>
+    <div class="ui positive right button">
+      Submit
+    </div>
+  </div>
+</div>
+}
+
+puts "<script>"
+puts "var XNOTE_SAVE_DIR = '$::kargs(-dbdir)';"
+puts "var XNOTE_MTIME    = [clock seconds];"
+puts "</script>"
+
+puts {
+<script>
+var note_dir = [location.pathname.replace(/\/[^\/]+$/,''), XNOTE_SAVE_DIR].join('/');
+var stars = {};
+
+function starlink(starid){
+  return '<a href="http://crmdbci.synopsys.com:9958/sap/bc/bsp/sap/zservice/getService.do?id='
+         + starid + '" target="_blank">' + starid + '</a>';
+}
+
+function unote_filter(text){
+    // .replace(/</g, '&lt;')
+    // .replace(/>/g, '&gt;')
+  return text.replace(/^\s+|\s+$/g,'')
+    .replace(/[\r\n]+/g,'<br/>')
+    .replace(/9\d{9}/g, '<a href="http://crmdbci.synopsys.com:9958/sap/bc/bsp/sap/zservice/getService.do?id=$&" target="_blank">$&</a>')
+    .replace(/CL:(\d+)/g, '<a href="http://pv/pone/checkin/?cmd=chgid&id=$1" target="_blank">$&</a>')
+    .replace(/(http:\/\/[\w\/]+\/)?(fatal\/[\w\.\/]+)/g, '<a href="http://pv/css/$2" target="_blank">$2</a>');
+}
+
+function unote_save(dir, name, text){
+  $.post("http://pv/pone/unote/unote.php", {dir:dir, name:name, text:text}, function(){
+    //TODO: alert("saved");
+  });
+}
+
+function unote_set($this, text){
+    var marks = text.match(/#(\w+)#/ig) || [];
+    $this.html(unote_filter(text))
+      .removeClass('unote-pass unote-fail unote-issue unote-todo unote-waived unote-waive')
+      .addClass(marks.join(' ').replace(/#/,'unote-').replace(/#/,''));
+
+    for(var i=0, stars = text.match(/9\d{9}/); stars && stars[i]; i++){
+      var starid = stars[i];
+      if(starid in window.stars) {
+	//
+      } else {
+	window.stars[starid] = {};
+      }
+    }
+  return;
+}
+
+function unote_pull(){
+  $.get("http://pv/pone/unote/unote.php", {dir:note_dir}, function(data){
+    window.notes = data;
+    $('.unote').each(function(){
+      var $this = $(this);
+      var note_id = $this.attr('data-unote');
+      if(data.hasOwnProperty(note_id)){
+	var text = data[note_id];
+        unote_set($this, text);
+      }
+    });
+    $('#unote-status').addClass('success').find('i').removeClass().addClass('checkmark icon');
+    $('#unote-status').find('.content strong').html('User notes loaded!');
+    refresh_autosum();
+    refresh_stars(1);
+  },'json');
+}
+
+$('.menu .item')
+  .tab()
+;
+
+setTimeout(unote_pull, 0);
+setInterval(unote_pull, 1000*30);
+
+$('.unote').dblclick(function(){
+  var $this = $(this);
+  $('#unote-dialog')
+    .modal({
+      onShow: function(){
+        var html = $this.html();
+        //console.log($this.attr('data-unote'));
+        // $('#unote-text').prev().text('hi '+$this.attr('data-unote'));
+        html = html.replace(/<\/?a[^>]*>/g,'').replace(/<br>/g,"\n");
+        $('#unote-text').val(html);
+      },
+      onApprove: function(){
+        var note_id = $this.attr('data-unote');
+        var note_text = $('#unote-text').val();
+        // $this.html(unote_filter(note_text));
+        unote_set($this, note_text);
+        unote_save(note_dir, note_id, note_text);
+      }
+    })
+    .modal('show');
+})
+
+$('#unote-marks a').click(function(){
+  var text = $('#unote-text').val();
+  var marks = $(this).attr('data-mark');
+  $('#unote-text').val(marks + ' ' + text);
+  return false;
+});
+
+
+function refresh_autosum(){
+    var outlier_autosum = {};
+    $('#outlier-detail tr[data-item]').each(function(){
+      var $this = $(this);
+      var item  = $this.attr('data-item');
+      var unote = $this.children().eq(-1).text();
+
+      if(unote == "") {
+        return;
+        // unote = "TBD " + design;
+      }
+      if(!(item in outlier_autosum)){
+	outlier_autosum[item] = {};
+      }
+      if(!(unote in outlier_autosum[item])){
+	outlier_autosum[item][unote] = 0;
+      }
+	outlier_autosum[item][unote]++;
+    });
+
+    $('#outlier-summary tr[data-item]').each(function(){
+      var $this = $(this);
+      var item  = $this.attr('data-item');
+
+      var n_unote = 0;
+      var unote = [];
+      if (item in outlier_autosum){
+	 var text;
+	 for(text in outlier_autosum[item]){
+	   var count = outlier_autosum[item][text];
+	   unote.push(""+count+" | " + text);
+           n_unote += count;
+	 }
+      }
+
+      var n_outlier = parseInt($this.children().eq(2).text());
+      if(n_unote < n_outlier){
+        unote.push("<span style='color:red'>"+(n_outlier - n_unote)+" | TBD</span>");
+      }
+      var text = unote.join("\n");
+      text = unote_filter(text);
+      $this.children().eq(-1).html(text);
+    });
+}
+
+function refresh_stars(fetch){
+  var id;
+  var html = '';
+  var star_list = [];
+  for(id in window.stars){
+    var starinfo = window.stars[id];
+    html += '<tr>';
+    html += '<th class="star">' + starlink(id) + '</th>';
+    html += '<td style="text-align:left">'+ starinfo.title  + '</td>';
+    html += '<td>'+ starinfo.status + '</td>';
+    html += '</tr>';
+    star_list.push(id);
+  }
+  $('#star-list').html(html);
+
+  if(fetch && star_list.length){
+    $.get("http://pv/pone/star/star.php", {star:star_list.join(' ')}, function(data){
+        for(var id in data){
+          window.stars[id] = data[id];
+        }
+        refresh_stars();
+    });
+  }
+}
+</script>
+
+}
+
+puts "</div>"
+puts {
+<div id="footer" class="ui inverted vertical footer segment"  style="text-align:center;margin-top:7em">
+<p>Google Chrome browser is suggested.</p>
+Contact <a href="mailto:szhang@synopsys.com">Sean Zhang</a> if needed
+</div>
+}
+
+puts "</body>"

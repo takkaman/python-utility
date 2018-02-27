@@ -1,0 +1,22 @@
+status :: Assigned
+title :: PV: fatal 
+product_l1 :: IC Compiler II
+product_l2 :: Pre-route Opt
+product_l3 :: 
+platform :: x86_64 Linux
+type :: Bug
+category :: CRASHES/HANGS
+occurred_at :: Pre-Production Testing - Int
+cust_severity :: High
+priority :: 3-High
+creator :: 
+assignee ::
+asked_release ::
+internal_priority ::
+target_release_int ::
+key_words :: PVSRAND/optimization
+search_string1 ::
+search_string2 :: 
+search_string3 ::
+
+

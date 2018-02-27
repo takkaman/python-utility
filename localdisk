@@ -1,0 +1,61 @@
+#!/bin/csh -f
+
+
+############################################################
+# by: Sean Zhang
+# at: Sep, 2013
+#
+# Take reference from DC PRS
+############################################################
+
+if ( $# < 1 ) then
+  echo "Usage: $0 command ?arg? ..."
+  exit
+endif
+
+
+
+# Pre-command C-shell script
+# ------------------------------
+# Run this tool in /SCRATCH
+umask 002
+#set prs_rundir = $cwd
+set prs_rundir = $PWD
+set prs_design = $prs_rundir:t
+if (-w /SCRATCH ) then
+  set prs_tmpdir = /SCRATCH/prs_tmp.$user.$prs_design.$$
+else
+  set prs_tmpdir = /tmp/prs_tmp.$user.$prs_design.$$
+endif
+rm -rf $prs_tmpdir
+onintr prs_tmpdir_cleanup
+
+# ------------------------------
+
+mkdir -p $prs_tmpdir
+rsync --update --archive $prs_rundir/. $prs_tmpdir/.
+
+ln -s $prs_tmpdir .
+chdir $prs_tmpdir
+
+# ------------------------------
+# User Command
+$*
+# ------------------------------
+
+chdir $prs_rundir
+rsync --update --archive $prs_tmpdir/. $prs_rundir/.
+
+# ------------------------------
+# Clean up
+prs_tmpdir_cleanup:
+nohup
+chdir $prs_rundir
+rm -rf $prs_tmpdir
+rm -rf $prs_tmpdir
+rm -f prs_tmp.*
+rm -rf *.nlib
+rm -rf *.pack
+# ------------------------------
+
+

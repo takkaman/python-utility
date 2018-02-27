@@ -1,0 +1,36 @@
+#!/usr/local/bin/python
+import time
+import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import sys
+
+user = os.getenv('USER')+'@synopsys.com'
+mail_to = ['phyan@synopsys.com', 'weif@synopsys.com']
+#mail_to = ['phyan@synopsys.com']
+run_result = sys.argv[1]
+
+try:
+    qor_result =  open("qor_compare_result").readlines()[0].split()[0]
+except IOError:
+    qor_result = None
+
+msg = MIMEMultipart('alternatvie')
+html = open('email.html').read()
+html_part = MIMEText(html,'html')
+html_part.set_charset('utf-8') 
+msg.attach(html_part)
+if qor_result == "outlier":
+    msg['Subject'] = '[Outlier][%s] ICC2 Preroute Random Suite Result' %run_result
+elif qor_result == "common_checkpoint_fail":
+    msg['Subject'] = '[Outlier][%s] ICC2 Preroute Random Suite Result' %run_result
+else:
+    msg['Subject'] = '[%s] ICC2 Preroute Random Suite Result' %run_result
+msg['From'] = user
+msg['To'] = ",".join(mail_to)
+
+s = smtplib.SMTP('localhost')
+s.sendmail(user, mail_to, msg.as_string())
+s.quit()
+

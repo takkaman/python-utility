@@ -1,0 +1,146 @@
+<!doctype html>
+<html>
+<title>Outlier Lists</title>
+<head>
+<link rel="stylesheet" type="text/css" href="http://pv/pone/asset/vendor/semantic/semantic.min.css">
+<script src="http://pv/pone/asset/vendor/jquery/1.9.1/jquery.min.js"></script>
+<script src="http://pv/pone/asset/vendor/semantic/semantic.min.js"></script>
+</head>
+
+  
+<body style="height: auto">
+<style>
+table {
+   border-collapse:collapse;margin:0.5em 0.5em;
+   border: 2px solid black;
+   border-width: 2px 1px;
+   font-size: 13px;
+}
+th {
+    background-color: lightcyan;
+    border-width: 1px;
+    padding:0 0.5em;
+    border: 1px solid silver;
+    line-height:2.0;
+}
+td {
+ border:1px solid silver;border-width:1px;
+ padding:0 0.6em;
+ line-height:2.0;
+ text-align:right;
+ padding-left:1.5em;
+}
+th.d {
+  text-align:right;
+}
+
+td.note {
+  min-width:16em;
+  text-align:left;
+}
+.unote {
+  background-color:lightyellow;
+  border-width:1px;
+  text-align:left;
+  color:#900;
+}
+
+thead tr, thead th, thead td {
+  border:2px solid black;
+  border-width:2px 1px;
+  font-weight:bold;
+  line-height:32px;
+  border-left-color:silver;
+  border-right-color:silver;
+
+}
+
+a:hover {
+  text-decoration:underline;
+}
+
+.unote.waived {
+    background-color: #ddd;
+    color: #333;
+}
+
+.unote.fail {
+    background-color: #f99;
+}
+
+.unote.pass {
+  background-color: lightgreen;
+  color: green;
+}
+
+.unote.issue {
+  background-color: yellow;
+}
+
+.unote.debug {
+    background-color: cyan;
+}
+
+tr.outlier-clean > * {
+  background-color:#cfc;
+}
+
+.has_outlier {
+    font-weight: bold;
+    color: red;
+}
+
+.case {
+    width:400px ;
+    word-break:break-all
+}
+</style>
+<div class="ui inverted stackable menu fixed">
+  <div class="ui container">
+    <a class="item" target="_blank" href="#"> QoR Regression </a>
+  </div>
+</div>
+<div id="main" class="ui container" style="margin-top:64px;">
+
+
+<h1 class='ui header'>Outlier Summary</h1>
+<h5 class='ui header'>Base image:</h5>
+<h5 class='ui header'>Compare image:</h5>
+<div class="ui top attached tabular menu">
+  <div class="item active" data-tab="outlier-detail">Outlier Detail</div>
+</div>
+
+<div class='ui tab segment bottom attached active' data-tab='outlier-summary'>
+
+  <table>
+  <thead> 
+  <tr>
+      <th>case_path</th>
+      <th>flow</th>
+      <th>WNS</th>
+      <th>TNS</th>
+      <th>TranAvg</th>
+      <th>MEM</th>
+      <th>CPU</th>
+      <th>TranCost</th>
+      <th>TranNVP</th>
+      <th>BufCnt</th>
+      <th>BufArea</th>
+      <th>TotalArea</th>
+      <th>HFN_60</th>
+      <th>HFN_100</th>
+      <th>BufRmvl</th>
+  </tr>
+  </thead> 
+
+</table>
+</div>
+<div id="unote-status" class="ui message icon small success">
+  <i class="checkmark icon"></i>
+  <div class="content">
+    <strong>Culprit run command generated here !!</strong>
+  </div>
+</div>
+</div>
+</body>
+</html> 
